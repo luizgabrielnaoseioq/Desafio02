@@ -19,7 +19,7 @@ export async function mealsRoutes(app: FastifyInstance) {
     return { meals };
   });
 
-  app.get("/:id", async (request, reply) => {
+  app.get("/:id", async (request) => {
     const getMealsParamSchema = z.object({
       id: z.string().uuid(),
     });
@@ -28,20 +28,17 @@ export async function mealsRoutes(app: FastifyInstance) {
 
     const meals = await knex("meals").where("id", id).first();
 
-    return reply
-      .header("Content-Type", "application/json")
-      .code(200)
-      .send(meals);
+    return { meals };
   });
 
   app.post("/", async (request, response) => {
-    const createTransactionbodySchema = z.object({
+    const createMealsBodySchema = z.object({
       name: z.string(),
       inside_diet: z.boolean(),
       user_id: z.string(),
     });
 
-    const { name, inside_diet, user_id } = createTransactionbodySchema.parse(
+    const { name, inside_diet, user_id } = createMealsBodySchema.parse(
       request.body
     );
 
@@ -52,6 +49,18 @@ export async function mealsRoutes(app: FastifyInstance) {
       user_id,
     });
 
-    return response.status(200).send("Meal create success");
+    return response.status(200).send("Meal create success!");
+  });
+
+  app.delete("/:id", async (request, reply) => {
+    const deleteMealsParamSchema = z.object({
+      id: z.string().uuid(),
+    });
+
+    const { id } = deleteMealsParamSchema.parse(request.params);
+
+    await knex("meals").where("id", id).del();
+
+    return reply.code(200).send("Mels deleted success!");
   });
 }
