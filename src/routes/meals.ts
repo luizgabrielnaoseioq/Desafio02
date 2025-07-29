@@ -5,6 +5,7 @@ import { knex } from "../database";
 import { request } from "node:http";
 import id from "zod/v4/locales/id.cjs";
 import { log } from "node:console";
+import { checkSessionIdExists } from "../middlewares/check-sessions-id-exists";
 
 interface MeslsProps {
   id: string;
@@ -15,20 +16,33 @@ interface MeslsProps {
 }
 
 export async function mealsRoutes(app: FastifyInstance) {
-  app.get("/", async () => {
-    const meals = await knex("meals").select();
+  app.get(
+    "/",
+    { preHandler: [checkSessionIdExists] },
+    async (request, reply) => {
+      const { sessionId } = request.cookies;
 
-    return { meals };
-  });
+      const meals = await knex("meals").where("session_id", sessionId).select();
 
-  app.get("/:id", async (request) => {
+      return { meals };
+    }
+  );
+
+  app.get("/:id", { preHandler: [checkSessionIdExists] }, async (request) => {
+    const { sessionId } = request.cookies;
+
     const getMealsParamSchema = z.object({
       id: z.string().uuid(),
     });
 
     const { id } = getMealsParamSchema.parse(request.params);
 
-    const meals = await knex("meals").where("id", id).first();
+    const meals = await knex("meals")
+      .where({
+        session_id: sessionId,
+        id: id,
+      })
+      .first();
 
     return { meals };
   });
@@ -44,15 +58,15 @@ export async function mealsRoutes(app: FastifyInstance) {
     const { name, description, inside_diet, user_id } =
       createMealsBodySchema.parse(request.body);
 
-    let sessionId = request.cookies.sessionId
+    let sessionId = request.cookies.sessionId;
 
     if (!sessionId) {
-      sessionId = randomUUID()
+      sessionId = randomUUID();
 
-      reply.cookie('sessionId', sessionId, {
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7 // 7 days
-      })
+      reply.cookie("sessionId", sessionId, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
     }
 
     await knex("meals").insert({
@@ -61,43 +75,53 @@ export async function mealsRoutes(app: FastifyInstance) {
       description,
       inside_diet,
       user_id,
-      session_id: sessionId
+      session_id: sessionId,
     });
 
     return reply.status(200).send("Meal create success!");
   });
 
-  app.put("/:id", async (request, reply) => {
-    const { id } = request.params as any;
+  app.put(
+    "/:id",
+    { preHandler: [checkSessionIdExists] },
+    async (request, reply) => {
+      const { sessionId } = request.cookies;
+      const { id } = request.params as any;
 
-    const updateMealsBodySchema = z.object({
-      name: z.string(),
-      description: z.string(),
-      inside_diet: z.boolean(),
-      user_id: z.string(),
-    });
-
-    const { name, description, inside_diet, user_id } =
-      updateMealsBodySchema.parse(request.body);
-
-    try {
-      const updatedRows = await knex("meals").where("id", id).update({
-        name: name,
-        description: description,
-        inside_diet: inside_diet,
-        user_id: user_id,
+      const updateMealsBodySchema = z.object({
+        name: z.string(),
+        description: z.string(),
+        inside_diet: z.boolean(),
+        user_id: z.string(),
       });
 
-      if (updatedRows === 0) {
-        return reply.status(404).send("Item não encontrado");
-      }
+      const { name, description, inside_diet, user_id } =
+        updateMealsBodySchema.parse(request.body);
 
-      reply.send("Meals updated");
-    } catch (error) {
-      app.log.error(error);
-      reply.status(500).send("Erro ao atualizar a refeição");
+      try {
+        const updatedRows = await knex("meals")
+          .where({
+            session_id: sessionId,
+            id: id,
+          })
+          .update({
+            name: name,
+            description: description,
+            inside_diet: inside_diet,
+            user_id: user_id,
+          });
+
+        if (updatedRows === 0) {
+          return reply.status(404).send("Item não encontrado");
+        }
+
+        reply.send("Meals updated");
+      } catch (error) {
+        app.log.error(error);
+        reply.status(500).send("Erro ao atualizar a refeição");
+      }
     }
-  });
+  );
 
   app.delete("/:id", async (request, reply) => {
     const deleteMealsParamSchema = z.object({
