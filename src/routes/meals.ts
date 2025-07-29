@@ -19,7 +19,7 @@ export async function mealsRoutes(app: FastifyInstance) {
     return { meals };
   });
 
-  app.get("/:id", async (request) => {
+  app.get("/:id", async (request, reply) => {
     const getMealsParamSchema = z.object({
       id: z.string().uuid(),
     });
@@ -28,11 +28,22 @@ export async function mealsRoutes(app: FastifyInstance) {
 
     const meals = await knex("meals").where("id", id).first();
 
-    return { meals };
+    return reply
+      .header("Content-Type", "application/json")
+      .code(200)
+      .send(meals);
   });
 
   app.post("/", async (request, response) => {
-    const { id, name, inside_diet, user_id } = request.body as MeslsProps;
+    const createTransactionbodySchema = z.object({
+      name: z.string(),
+      inside_diet: z.boolean(),
+      user_id: z.string(),
+    });
+
+    const { name, inside_diet, user_id } = createTransactionbodySchema.parse(
+      request.body
+    );
 
     await knex("meals").insert({
       id: randomUUID(),
