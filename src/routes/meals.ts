@@ -11,6 +11,7 @@ interface MeslsProps {
   name: string;
   inside_diet: boolean;
   user_id: string;
+  session_id: string;
 }
 
 export async function mealsRoutes(app: FastifyInstance) {
@@ -43,12 +44,24 @@ export async function mealsRoutes(app: FastifyInstance) {
     const { name, description, inside_diet, user_id } =
       createMealsBodySchema.parse(request.body);
 
+    let sessionId = request.cookies.sessionId
+
+    if (!sessionId) {
+      sessionId = randomUUID()
+
+      reply.cookie('sessionId', sessionId, {
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7 // 7 days
+      })
+    }
+
     await knex("meals").insert({
       id: randomUUID(),
       name,
       description,
       inside_diet,
       user_id,
+      session_id: sessionId
     });
 
     return reply.status(200).send("Meal create success!");
