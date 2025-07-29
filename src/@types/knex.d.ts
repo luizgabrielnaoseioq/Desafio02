@@ -10,7 +10,6 @@ declare module "knex/types/tables" {
       description: string;
       inside_diet: boolean;
       date: string; // ou Date, se estiver usando knex.fn.now()
-      user_id: string;
       session_id?: string;
     };
   }

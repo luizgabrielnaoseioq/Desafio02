@@ -11,11 +11,15 @@ interface MeslsProps {
   id: string;
   name: string;
   inside_diet: boolean;
-  user_id: string;
   session_id: string;
 }
 
 export async function mealsRoutes(app: FastifyInstance) {
+  app.addHook('preHandler', async (request, reply) => {
+    console.log(`[${request.method} ${request.url}]`);
+    
+  })
+
   app.get(
     "/",
     { preHandler: [checkSessionIdExists] },
@@ -52,10 +56,9 @@ export async function mealsRoutes(app: FastifyInstance) {
       name: z.string(),
       description: z.string(),
       inside_diet: z.boolean(),
-      user_id: z.string(),
     });
 
-    const { name, description, inside_diet, user_id } =
+    const { name, description, inside_diet} =
       createMealsBodySchema.parse(request.body);
 
     let sessionId = request.cookies.sessionId;
@@ -74,7 +77,6 @@ export async function mealsRoutes(app: FastifyInstance) {
       name,
       description,
       inside_diet,
-      user_id,
       session_id: sessionId,
     });
 
@@ -92,10 +94,9 @@ export async function mealsRoutes(app: FastifyInstance) {
         name: z.string(),
         description: z.string(),
         inside_diet: z.boolean(),
-        user_id: z.string(),
       });
 
-      const { name, description, inside_diet, user_id } =
+      const { name, description, inside_diet } =
         updateMealsBodySchema.parse(request.body);
 
       try {
@@ -108,7 +109,6 @@ export async function mealsRoutes(app: FastifyInstance) {
             name: name,
             description: description,
             inside_diet: inside_diet,
-            user_id: user_id,
           });
 
         if (updatedRows === 0) {
@@ -123,14 +123,18 @@ export async function mealsRoutes(app: FastifyInstance) {
     }
   );
 
-  app.delete("/:id", async (request, reply) => {
+  app.delete("/:id", { preHandler: [checkSessionIdExists], }, async (request, reply) => {
+    const { sessionId } = request.cookies
     const deleteMealsParamSchema = z.object({
       id: z.string().uuid(),
     });
 
     const { id } = deleteMealsParamSchema.parse(request.params);
 
-    await knex("meals").where("id", id).del();
+    await knex("meals").where({
+      session_id: sessionId,
+      id: id,
+    }).del();
 
     return reply.code(200).send("Mels deleted success!");
   });
